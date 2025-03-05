@@ -77,3 +77,6 @@ cd backend
 npm run start
 ```
 
+
+## Demo
+![Alt text](./NoteApp.png)
