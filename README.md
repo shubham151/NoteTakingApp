@@ -30,6 +30,9 @@ git clone https://github.com/shubham151/NoteTakingApp.git
 ```bash
 cd NodeTakingApp/fronted
 npm install
+
+cd ../backend
+npm install
 ```
 
 ## set end file for frontend and backend
