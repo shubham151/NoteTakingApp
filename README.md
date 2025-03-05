@@ -25,7 +25,7 @@ A full-stack **NestJS + React (Vite) + PostgreSQL** application that allows user
 git clone https://github.com/shubham151/NoteTakingApp.git
 ```
 
-## Install npm modules
+## Install npm modules and dependencies
 
 ```bash
 cd NodeTakingApp/fronted
@@ -33,6 +33,7 @@ npm install
 
 cd ../backend
 npm install
+npm install @nestjs/common @nestjs/typeorm typeorm pg
 ```
 
 ## set end file for frontend and backend
