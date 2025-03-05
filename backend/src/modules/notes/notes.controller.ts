@@ -40,16 +40,13 @@ export class NotesController {
     );
   }
 
-  @Patch('share/:noteId')
-  async shareNote(
+    @Patch('share/:noteId')
+    async shareNote(
     @Param('noteId') noteId: number,
-    @Body() { username }: { username: string },
-    @Request() req,
-  ) {
-    return this.notesService.shareNoteWithUser(
-      noteId,
-      username,
-      req.user.username,
-    );
-  }
+    @Body() { usernameOrEmail }: { usernameOrEmail: string },
+    @Request() req
+    ) {
+    return this.notesService.shareNoteWithUser(noteId, usernameOrEmail, req.user.username);
+    }
+
 }

@@ -87,7 +87,7 @@ export class NotesService {
   
   
 
-  async shareNoteWithUser(noteId: number, username: string, owner: string) {
+  async shareNoteWithUser(noteId: number, usernameOrEmail: string, owner: string) {
     const note = await this.noteHeaderRepository.findOne({
       where: { id: noteId },
     });
@@ -95,18 +95,31 @@ export class NotesService {
     if (!note) {
       throw new NotFoundException('Note not found');
     }
-
+  
+    // ✅ Ensure only the owner can share the note
     if (note.owner !== owner) {
       throw new UnauthorizedException('Only the owner can share this note');
     }
+  
+
+    const user = await this.userRepository.findOne({
+      where: [{ username: usernameOrEmail }, { email: usernameOrEmail }],
+    });
+  
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+  
+   
     const sharedUsers = note.sharedWith || [];
-    if (!sharedUsers.includes(username)) {
-      sharedUsers.push(username);
+    if (!sharedUsers.includes(user.username)) {
+      sharedUsers.push(user.username);
       note.sharedWith = sharedUsers;
       await this.noteHeaderRepository.save(note);
     }
   
-    return { message: `Note shared with ${username}` };
+    return { message: `Note shared with ${user.username}` };
   }
+  
   
 }

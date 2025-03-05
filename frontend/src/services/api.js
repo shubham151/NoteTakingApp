@@ -71,15 +71,17 @@ export const updateNote = async (noteId, content, title) => {
   );
 };
 
-export const shareNote = async (noteId, username) => {
+export const shareNote = async (noteId, usernameOrEmail) => {
   const token = localStorage.getItem('token');
   if (!token) throw new Error("User not authenticated");
 
   return api.patch(
     `/notes/share/${noteId}`,
-    { username },
+    { usernameOrEmail },
     { headers: { Authorization: `Bearer ${token}` } }
   );
+
+
 };
 
 

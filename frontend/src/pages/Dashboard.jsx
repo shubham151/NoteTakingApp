@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getNotes, createNote, updateNote } from "../services/api";
+import { getNotes, createNote, updateNote, shareNote } from "../services/api";
 import io from "socket.io-client";
 import "bootstrap/dist/css/bootstrap.min.css";
 import styles from "../styles/Dashboard.module.css";
@@ -134,7 +134,7 @@ const Dashboard = () => {
       alert("Failed to update note");
     }
 
-    // Clear edit mode & keep the temp data for reference (optional)
+    // Clear edit mode
     setEditingNoteId(null);
     setEditingField(null);
   };
@@ -158,6 +158,21 @@ const Dashboard = () => {
         content: newContent,
       },
     }));
+  };
+
+  // 🔹 New: Handle Share
+  const handleShare = async (note) => {
+    // Prompt for username to share with
+    const usernameToShare = prompt("Enter username to share this note:");
+    if (!usernameToShare) return; // User pressed Cancel or typed empty
+
+    try {
+      await shareNote(note.id, usernameToShare);
+      alert(`Note shared with "${usernameToShare}" successfully!`);
+      // Optionally: update local state if you want to track who it's shared with
+    } catch (error) {
+      alert(`Failed to share note: ${error.message}`);
+    }
   };
 
   return (
@@ -235,6 +250,19 @@ const Dashboard = () => {
                     </p>
                   )}
                 </div>
+              </div>
+
+              {/* Share Button */}
+              <div className="d-flex justify-content-end mt-2">
+                <button
+                  className="btn btn-sm btn-outline-primary"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent note click event
+                    handleShare(note);
+                  }}
+                >
+                  Share
+                </button>
               </div>
             </div>
           );
