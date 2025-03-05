@@ -60,14 +60,26 @@ export const getNotes = async () => {
   }
 };
 
-export const updateNote = async (noteId, content) => {
+export const updateNote = async (noteId, content, title) => {
   const token = localStorage.getItem('token');
   if (!token) throw new Error("User not authenticated");
 
   return api.patch(
     `/notes/update/${noteId}`,
-    { content },
+    { content, title },
     { headers: { Authorization: `Bearer ${token}` } }
   );
 };
+
+export const shareNote = async (noteId, username) => {
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error("User not authenticated");
+
+  return api.patch(
+    `/notes/share/${noteId}`,
+    { username },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+};
+
 

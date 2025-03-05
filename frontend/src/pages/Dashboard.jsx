@@ -1,120 +1,245 @@
-import { useState, useEffect } from 'react';
-import { getNotes, createNote } from '../services/api';
-import io from 'socket.io-client';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import { useState, useEffect } from "react";
+import { getNotes, createNote, updateNote } from "../services/api";
+import io from "socket.io-client";
+import "bootstrap/dist/css/bootstrap.min.css";
+import styles from "../styles/Dashboard.module.css";
 
-const socket = io('http://localhost:3000');
+const token = localStorage.getItem("token");
+const socket = io("http://localhost:3000", {
+  auth: { token },
+});
 
 const Dashboard = () => {
   const [notes, setNotes] = useState([]);
-  const [editingNote, setEditingNote] = useState(null);
-  const [content, setContent] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [newNoteTitle, setNewNoteTitle] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingField, setEditingField] = useState(null);
+
+  // Dictionary storing { [noteId]: { title, content } }
+  const [tempData, setTempData] = useState({});
 
   useEffect(() => {
     fetchNotes();
 
-    socket.on('noteUpdated', (updatedNote) => {
+    socket.on("noteUpdated", (updatedNote) => {
       setNotes((prevNotes) =>
         prevNotes.map((note) =>
-          note.id === updatedNote.noteId ? { ...note, details: [{ content: updatedNote.content }] } : note
+          note.id === updatedNote.noteId
+            ? {
+                ...note,
+                title: updatedNote.title,
+                details: [{ content: updatedNote.content }],
+              }
+            : note
         )
       );
     });
 
-    return () => socket.off('noteUpdated');
+    return () => socket.off("noteUpdated");
   }, []);
 
+  // Fetch the initial notes from your API
   const fetchNotes = async () => {
-    const token = localStorage.getItem('token');
-    const res = await getNotes(token);
-    setNotes(res);
+    try {
+      const res = await getNotes(token);
+      setNotes(res);
+    } catch (error) {
+      console.error("Error fetching notes:", error);
+    }
   };
 
+  // Create a new note, add it at the top, and prepare it for immediate editing
   const handleCreateNote = async () => {
-    if (!newNoteTitle) return alert('Title cannot be empty');
-    const token = localStorage.getItem('token');
-
     try {
-      await createNote(newNoteTitle, token);
-      fetchNotes(); // Refresh notes list
-      setShowModal(false);
-      setNewNoteTitle('');
+      const newNote = await createNote("Untitled Note", token);
+
+      // Insert the brand-new note at the top of local state
+      setNotes((prevNotes) => [
+        { id: newNote.id, title: "Untitled Note", details: [{ content: "" }] },
+        ...prevNotes,
+      ]);
+
+      // Set up temporary data so user can edit right away
+      setTempData((prev) => ({
+        ...prev,
+        [newNote.id]: { title: "Untitled Note", content: "" },
+      }));
+
+      // Focus on the title immediately
+      setEditingNoteId(newNote.id);
+      setEditingField("title");
     } catch (error) {
-      alert('Failed to create note');
+      alert("Failed to create note");
     }
   };
 
-  const handleEdit = (note) => {
-    setEditingNote(note);
-    setContent(note.details.length ? note.details[0].content : '');
+  // When user clicks a note's title or content
+  const handleEdit = (note, field) => {
+    // If we're already editing the same note + field, do nothing
+    if (editingNoteId === note.id && editingField === field) return;
+
+    setEditingNoteId(note.id);
+    setEditingField(field);
+
+    // Initialize temp data if not yet present
+    setTempData((prev) => ({
+      ...prev,
+      [note.id]: {
+        // If we already stored something for this note, use that
+        // Else fallback to the actual note data
+        title:
+          prev[note.id]?.title ??
+          (note.title && note.title !== "Untitled Note" ? note.title : ""),
+        content:
+          prev[note.id]?.content ??
+          (note.details.length ? note.details[0].content : ""),
+      },
+    }));
   };
 
-  const handleSave = async () => {
-    if (!editingNote) return;
+  // On blur, save changes to the backend and update local state
+  const handleBlur = async () => {
+    if (!editingNoteId) return;
+
+    // Grab the in-progress data
+    const { title = "", content = "" } = tempData[editingNoteId] || {};
+
+    // If user typed only whitespace or empty, fallback
+    const finalTitle = title.trim() === "" ? "Untitled Note" : title.trim();
+    const finalContent = content;
 
     try {
-      await updateNote(editingNote.id, content);
-      socket.emit('updateNote', { noteId: editingNote.id, content });
-      setEditingNote(null);
+      // Send update to the server
+      await updateNote(editingNoteId, finalContent, finalTitle);
+
+      // Emit socket event to keep all clients in sync
+      socket.emit("updateNote", {
+        noteId: editingNoteId,
+        title: finalTitle,
+        content: finalContent,
+      });
+
+      // Update local notes array
+      setNotes((prevNotes) =>
+        prevNotes.map((note) =>
+          note.id === editingNoteId
+            ? {
+                ...note,
+                title: finalTitle,
+                details: [{ content: finalContent }],
+              }
+            : note
+        )
+      );
     } catch (error) {
-      alert('Failed to update note');
+      alert("Failed to update note");
     }
+
+    // Clear edit mode & keep the temp data for reference (optional)
+    setEditingNoteId(null);
+    setEditingField(null);
+  };
+
+  // Helpers to update temp data as user types
+  const handleTitleChange = (noteId, newTitle) => {
+    setTempData((prev) => ({
+      ...prev,
+      [noteId]: {
+        ...prev[noteId],
+        title: newTitle,
+      },
+    }));
+  };
+
+  const handleContentChange = (noteId, newContent) => {
+    setTempData((prev) => ({
+      ...prev,
+      [noteId]: {
+        ...prev[noteId],
+        content: newContent,
+      },
+    }));
   };
 
   return (
-    <div className="container">
-      <h2 className="mt-4">My Notes</h2>
+    <div className="container-fluid mt-5 pt-5">
+      <h2 className="text-center mb-4">My Notes</h2>
 
-      {/* Create Note Button */}
-      <button className="btn btn-primary mb-3" onClick={() => setShowModal(true)}>+ Create Note</button>
+      <button className="btn btn-primary mb-3" onClick={handleCreateNote}>
+        + Create Note
+      </button>
 
-      <ul className="list-group">
-        {notes.map((note) => (
-          <li key={note.id} className="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-              <h5>{note.title}</h5>
-              <p>Owner: {note.owner}</p>
+      <div className="row">
+        {notes.map((note) => {
+          const { id } = note;
+          // Grab the temporary data for this note (if any)
+          const tempTitle = tempData[id]?.title ?? note.title ?? "";
+          const tempContent =
+            tempData[id]?.content ??
+            (note.details.length ? note.details[0].content : "");
+
+          return (
+            <div key={id} className="col-md-4 col-lg-2 mb-4">
+              <div
+                className={`${styles.noteCard} ${
+                  editingNoteId === id ? styles.expandedCard : ""
+                }`}
+                onClick={() => handleEdit(note, "content")}
+              >
+                {/* Editable Title */}
+                <div
+                  className={styles.noteHeader}
+                  onClick={(e) => {
+                    // Prevent the parent's onClick from firing
+                    e.stopPropagation();
+                    handleEdit(note, "title");
+                  }}
+                >
+                  {editingNoteId === id && editingField === "title" ? (
+                    <input
+                      className={styles.editableTitle}
+                      value={tempTitle}
+                      onChange={(e) => handleTitleChange(id, e.target.value)}
+                      onBlur={handleBlur}
+                      autoFocus
+                    />
+                  ) : (
+                    <span className={styles.fullWidth}>
+                      {note.title && note.title !== "Untitled Note"
+                        ? note.title
+                        : tempTitle || "Untitled Note"}
+                    </span>
+                  )}
+                </div>
+
+                {/* Editable Content */}
+                <div
+                  className={styles.noteContent}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(note, "content");
+                  }}
+                >
+                  {editingNoteId === id && editingField === "content" ? (
+                    <textarea
+                      className={styles.editableContent}
+                      value={tempContent}
+                      onChange={(e) => handleContentChange(id, e.target.value)}
+                      onBlur={handleBlur}
+                      autoFocus
+                    />
+                  ) : (
+                    <p className={styles.fullWidth}>
+                      {note.details.length
+                        ? note.details[0].content
+                        : tempContent || "Click to edit note..."}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-            {editingNote && editingNote.id === note.id ? (
-              <>
-                <textarea className="form-control" value={content} onChange={(e) => setContent(e.target.value)} />
-                <button className="btn btn-success btn-sm" onClick={handleSave}>Save</button>
-              </>
-            ) : (
-              <button className="btn btn-sm btn-outline-secondary" onClick={() => handleEdit(note)}>Edit</button>
-            )}
-          </li>
-        ))}
-      </ul>
-
-      {/* Modal for Creating Notes */}
-      {showModal && (
-        <div className="modal fade show d-block" style={{ background: 'rgba(0, 0, 0, 0.5)' }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Create New Note</h5>
-                <button className="btn-close" onClick={() => setShowModal(false)}></button>
-              </div>
-              <div className="modal-body">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Enter Note Title"
-                  value={newNoteTitle}
-                  onChange={(e) => setNewNoteTitle(e.target.value)}
-                />
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleCreateNote}>Create</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 };

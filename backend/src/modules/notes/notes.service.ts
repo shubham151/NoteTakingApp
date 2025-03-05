@@ -48,7 +48,7 @@ export class NotesService {
   }
   
 
-  async updateNoteContent(noteId: number, content: string, username: string) {
+  async updateNoteContent(noteId: number, content: string, title: string, username: string) {
     const note = await this.noteHeaderRepository.findOne({
       where: { id: noteId },
       relations: ['details'],
@@ -58,10 +58,14 @@ export class NotesService {
       throw new NotFoundException('Note not found');
     }
   
+  
     if (note.owner !== username && !note.sharedWith.includes(username)) {
       throw new UnauthorizedException('You do not have permission to edit this note');
     }
+
+    note.title = title;
   
+
     let noteDetail = await this.noteDetailsRepository.findOne({
       where: { header: { id: noteId } },
     });
@@ -75,25 +79,34 @@ export class NotesService {
       noteDetail.content = content;
     }
   
+    await this.noteHeaderRepository.save(note);
     await this.noteDetailsRepository.save(noteDetail);
+  
     return { message: 'Note updated successfully' };
   }
   
+  
 
-  async shareNoteWithUser(noteId: number, username: string) {
+  async shareNoteWithUser(noteId: number, username: string, owner: string) {
     const note = await this.noteHeaderRepository.findOne({
       where: { id: noteId },
     });
-
+  
     if (!note) {
       throw new NotFoundException('Note not found');
     }
 
-    if (!note.sharedWith.includes(username)) {
-      note.sharedWith.push(username);
+    if (note.owner !== owner) {
+      throw new UnauthorizedException('Only the owner can share this note');
+    }
+    const sharedUsers = note.sharedWith || [];
+    if (!sharedUsers.includes(username)) {
+      sharedUsers.push(username);
+      note.sharedWith = sharedUsers;
       await this.noteHeaderRepository.save(note);
     }
-
+  
     return { message: `Note shared with ${username}` };
   }
+  
 }
